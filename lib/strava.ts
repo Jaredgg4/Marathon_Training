@@ -9,7 +9,7 @@ export interface StravaTokenResponse {
 
 export interface StravaAthlete {
   id: number
-  email: string
+  email?: string   // Strava does not return email in the token response
   firstname: string
   lastname: string
 }

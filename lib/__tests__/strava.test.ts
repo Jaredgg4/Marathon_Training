@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { isStravaTokenExpired, getStravaAuthUrl } from '../strava'
 
 describe('isStravaTokenExpired', () => {
@@ -21,6 +21,10 @@ describe('isStravaTokenExpired', () => {
 describe('getStravaAuthUrl', () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID = 'test_client_123'
+  })
+
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID
   })
 
   it('includes the redirect URI', () => {
