@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Soft arcing stride: thick rounded curve leaping upward -->
+  <path d="M 110 360 Q 256 100 402 360"
+        fill="none"
+        stroke="#B6FF3C"
+        stroke-width="64"
+        stroke-linecap="round"/>
+
+  <!-- Off-white planted dot (the "step") -->
+  <circle cx="110" cy="360" r="28" fill="#F5F1E8"/>
+</svg>

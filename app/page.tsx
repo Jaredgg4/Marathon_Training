@@ -1,5 +1,5 @@
-import MarathonPlan from "./components/MarathonPlan";
+import { redirect } from 'next/navigation'
 
-export default function Home() {
-  return <MarathonPlan />;
+export default function HomePage() {
+  redirect('/dashboard')
 }

@@ -20,4 +20,12 @@ CREATE POLICY "Users can insert own Strava connection"
 
 CREATE POLICY "Users can update own Strava connection"
   ON public.strava_connections FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own Strava connection"
+  ON public.strava_connections FOR DELETE
   USING (auth.uid() = user_id);
+
+-- Index for RLS policy performance (user_id is not indexed by default on FK columns)
+CREATE INDEX ON public.strava_connections (user_id);

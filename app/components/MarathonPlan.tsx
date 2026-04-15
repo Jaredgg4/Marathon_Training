@@ -23,11 +23,27 @@ import {
 
 type TabType = "dashboard" | "plan" | "strava" | "log";
 
-export default function MarathonPlan() {
+type UserProfile = {
+  displayName?: string
+  raceType?: string
+  goalRaceDate?: string
+  goalFinishTime?: string
+  weeklyMileage?: number
+  fitnessLevel?: string
+}
+
+export default function MarathonPlan({
+  displayName,
+  raceType,
+  goalRaceDate,
+  goalFinishTime,
+  weeklyMileage,
+  fitnessLevel,
+}: UserProfile = {}) {
   const [tab, setTab] = useState<TabType>("dashboard");
   const [phIdx, setPhIdx] = useState(0);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
-  
+
   // Strava state
   const [token, setToken] = useState("");
   const [tInput, setTInput] = useState("");
@@ -36,7 +52,7 @@ export default function MarathonPlan() {
   const [syncing, setSyncing] = useState(false);
   const [serr, setSErr] = useState("");
   const [showI, setShowI] = useState(false);
-  
+
   // Manual run state
   const [manual, setManual] = useState<ManualRun[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -49,7 +65,7 @@ export default function MarathonPlan() {
     const savedAthlete = localStorage.getItem("marathon-athlete");
     const savedActs = localStorage.getItem("marathon-acts");
     const savedManual = localStorage.getItem("marathon-manual");
-    
+
     if (savedChecked) {
       try {
         const parsed = JSON.parse(savedChecked);
@@ -194,7 +210,9 @@ export default function MarathonPlan() {
 
   // Computed values
   const CW = curWeekNum();
-  const RD = raceDays();
+  const RD = goalRaceDate
+    ? Math.ceil((new Date(goalRaceDate).getTime() - Date.now()) / 86400000)
+    : raceDays();
   const cPhase = PHASES.find((p) => p.weeks.some((w) => w.n === CW)) || PHASES[0];
   const cWkData = PHASES.flatMap((p) => p.weeks).find((w) => w.n === CW);
   const cwDates = getWeekDates(CW);
@@ -223,7 +241,7 @@ export default function MarathonPlan() {
       name: a.name,
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
-  
+
   const allRuns: RunEntry[] = [
     ...sLog,
     ...manual.map((r) => ({ ...r, pace: "—", name: r.notes })),
@@ -231,10 +249,10 @@ export default function MarathonPlan() {
 
   // Helper functions
   const wc = (w: string) => {
-    if (!w) return "text-gray-600";
-    if (w.includes("🏁")) return "text-blue-400";
+    if (!w) return "text-gray-500";
+    if (w.includes("🏁")) return "text-[#B6FF3C]";
     if (w.includes("tempo")) return "text-yellow-400";
-    if (w === "Rest") return "text-gray-700";
+    if (w === "Rest") return "text-gray-400";
     return "text-gray-500";
   };
 
@@ -248,21 +266,26 @@ export default function MarathonPlan() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-200 font-sans">
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Navigation */}
-      <nav className="bg-zinc-900 border-b border-zinc-800 px-6 py-3 flex items-center justify-between flex-wrap gap-4">
+      <nav className="bg-white border-b border-gray-200 shadow-sm px-6 py-3 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <span className="text-xl font-bold tracking-wide text-white">ROAD TO 26.2</span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-7 h-7 shrink-0">
+            <path d="M 110 360 Q 256 100 402 360" fill="none" stroke="#B6FF3C" strokeWidth="64" strokeLinecap="round"/>
+            <circle cx="110" cy="360" r="28" fill="#1a1a1a"/>
+          </svg>
+          <span className="text-xl font-bold tracking-wide text-white" style={{ color: "#111" }}>Steppa</span>
+          {displayName && (
+            <span className="text-xs text-gray-600 tracking-wide">
+              {displayName}
+            </span>
+          )}
           {athlete && (
-            <span className="text-xs text-green-400 flex items-center gap-2">
+            <span className="text-xs text-[#B6FF3C] flex items-center gap-2">
               {athlete.profile_medium && (
-                <img
-                  src={athlete.profile_medium}
-                  alt=""
-                  className="w-5 h-5 rounded-full border border-green-400"
-                />
+                <img src={athlete.profile_medium} alt="" className="w-5 h-5 rounded-full border border-[#B6FF3C]" />
               )}
-              {athlete.firstname} {athlete.lastname}
+              ✓ Strava
             </span>
           )}
         </div>
@@ -273,8 +296,8 @@ export default function MarathonPlan() {
               onClick={() => setTab(t.id)}
               className={`px-4 py-1.5 text-xs font-bold tracking-widest rounded transition-colors ${
                 tab === t.id
-                  ? "bg-zinc-800 text-white border border-zinc-700"
-                  : "bg-transparent hover:text-zinc-300"
+                  ? "bg-black text-white border border-black"
+                  : "bg-transparent hover:text-gray-900"
               }`}
               style={tab !== t.id && t.sp ? { color: t.sp } : undefined}
             >
@@ -283,8 +306,11 @@ export default function MarathonPlan() {
           ))}
         </div>
         <div className="text-right">
-          <div className="text-xs tracking-widest text-zinc-500 uppercase">Nov 7 Race</div>
-          <div className="text-2xl font-black text-orange-500">{RD}d</div>
+          <div className="text-xs tracking-widest text-gray-500 uppercase">
+            {raceType ? raceType.replace(/_/g, ' ') : 'Race'}
+            {goalRaceDate ? ` · ${new Date(goalRaceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+          </div>
+          <div className="text-2xl font-black text-[#B6FF3C]">{RD > 0 ? `${RD}d` : '🏁'}</div>
         </div>
       </nav>
 
@@ -296,30 +322,71 @@ export default function MarathonPlan() {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { lb: "DAYS TO RACE", v: RD, sub: "Nov 7, 2026", c: "text-orange-500" },
-                { lb: "CURRENT WEEK", v: `WK ${CW}`, sub: cPhase.label, c: "text-green-400" },
-                { lb: "PLAN PROGRESS", v: `${pct}%`, sub: `${done}/${allKeys.length} workouts`, c: "text-purple-400" },
+                { lb: "DAYS TO RACE", v: RD > 0 ? RD : "🏁", sub: goalRaceDate ? new Date(goalRaceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Nov 7, 2026", c: "text-[#B6FF3C]" },
+                { lb: "CURRENT WEEK", v: `WK ${CW}`, sub: cPhase.label, c: "text-[#B6FF3C]" },
+                { lb: "PLAN PROGRESS", v: `${pct}%`, sub: `${done}/${allKeys.length} workouts`, c: "text-[#B6FF3C]" },
                 athlete
-                  ? { lb: "STRAVA MILES", v: `${sMiles.toFixed(0)} mi`, sub: `${sRuns.length} runs`, c: "text-orange-400" }
-                  : { lb: "STRAVA", v: "Not linked", sub: "Connect in Strava tab", c: "text-zinc-500" },
+                  ? { lb: "STRAVA MILES", v: `${sMiles.toFixed(0)} mi`, sub: `${sRuns.length} runs`, c: "text-[#B6FF3C]" }
+                  : { lb: "STRAVA", v: "Not linked", sub: "Connect in Strava tab", c: "text-gray-500" },
               ].map((s, i) => (
-                <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-center">
-                  <div className="text-xs tracking-widest text-zinc-500 uppercase mb-2">{s.lb}</div>
+                <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 text-center">
+                  <div className="text-xs tracking-widest text-gray-500 uppercase mb-2">{s.lb}</div>
                   <div className={`text-3xl font-black ${s.c}`}>{s.v}</div>
-                  <div className="text-xs text-zinc-600 mt-1">{s.sub}</div>
+                  <div className="text-xs text-gray-400 mt-1">{s.sub}</div>
                 </div>
               ))}
             </div>
 
-            {/* Progress Bar */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs tracking-widest text-zinc-500 uppercase">Overall Plan Completion</span>
-                <span className="text-lg font-bold text-purple-400">{pct}%</span>
+            {/* Your Goals */}
+            {(raceType || goalRaceDate || goalFinishTime || weeklyMileage !== undefined || fitnessLevel) && (
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <div className="text-xs tracking-widest text-gray-500 uppercase mb-3">Your Goals</div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {raceType && (
+                    <div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Race Type</div>
+                      <div className="text-sm font-semibold text-white capitalize" style={{ color: "#111" }}>{raceType.replace(/_/g, ' ')}</div>
+                    </div>
+                  )}
+                  {goalRaceDate && (
+                    <div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Race Date</div>
+                      <div className="text-sm font-semibold text-white" style={{ color: "#111" }}>
+                        {new Date(goalRaceDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      </div>
+                    </div>
+                  )}
+                  {goalFinishTime && (
+                    <div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Goal Time</div>
+                      <div className="text-sm font-semibold text-white" style={{ color: "#111" }}>{goalFinishTime}</div>
+                    </div>
+                  )}
+                  {weeklyMileage !== undefined && (
+                    <div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Weekly Mileage</div>
+                      <div className="text-sm font-semibold text-white" style={{ color: "#111" }}>{weeklyMileage} mi/week</div>
+                    </div>
+                  )}
+                  {fitnessLevel && (
+                    <div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Fitness Level</div>
+                      <div className="text-sm font-semibold text-white capitalize" style={{ color: "#111" }}>{fitnessLevel}</div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="bg-zinc-800 rounded-full h-2">
+            )}
+
+            {/* Progress Bar */}
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs tracking-widest text-gray-500 uppercase">Overall Plan Completion</span>
+                <span className="text-lg font-bold text-[#B6FF3C]">{pct}%</span>
+              </div>
+              <div className="bg-gray-100 rounded-full h-2">
                 <div
-                  className="h-full bg-linear-to-r from-purple-700 to-purple-400 rounded-full transition-all duration-500"
+                  className="h-full bg-linear-to-r from-[#86C700] to-[#B6FF3C] rounded-full transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -339,19 +406,19 @@ export default function MarathonPlan() {
             </div>
 
             {/* This Week */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
+            <div className="bg-white border border-gray-200 rounded-lg p-5">
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <div className="text-xs tracking-widest uppercase mb-1" style={{ color: cPhase.accent }}>
                     {cPhase.label} · {cPhase.range}
                   </div>
-                  <h2 className="text-2xl font-black text-white">THIS WEEK — WK {CW}</h2>
+                  <h2 className="text-2xl font-black text-white" style={{ color: "#111" }}>THIS WEEK — WK {CW}</h2>
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold" style={{ color: cPhase.accent }}>
                     {cwDone}/{cwDays.length}
                   </div>
-                  <div className="text-xs text-zinc-500">completed</div>
+                  <div className="text-xs text-gray-500">completed</div>
                 </div>
               </div>
 
@@ -370,24 +437,24 @@ export default function MarathonPlan() {
                         onClick={() => !isR && toggle(key)}
                         className={`p-3 rounded-lg border transition-all ${
                           isR
-                            ? "bg-zinc-950 border-zinc-800 cursor-default"
+                            ? "bg-gray-50 border-gray-200 cursor-default"
                             : dn
-                            ? "bg-green-950/30 border-green-800 cursor-pointer"
-                            : "bg-zinc-950 border-zinc-800 cursor-pointer hover:bg-zinc-900 hover:border-zinc-700"
+                            ? "bg-[#B6FF3C]/10 border-[#B6FF3C]/50 cursor-pointer"
+                            : "bg-white border-gray-200 cursor-pointer hover:bg-gray-50 hover:border-gray-300"
                         }`}
                       >
                         <div className="flex justify-between items-center mb-2">
-                          <span className={`text-xs tracking-widest ${dn ? "text-green-400" : "text-zinc-500"}`}>
+                          <span className={`text-xs tracking-widest ${dn ? "text-[#B6FF3C]" : "text-gray-500"}`}>
                             {dayLabel(d)}
                           </span>
-                          <span className={`text-sm ${dn ? "text-green-400" : isR ? "text-zinc-600" : "text-zinc-700"}`}>
+                          <span className={`text-sm ${dn ? "text-[#B6FF3C]" : isR ? "text-gray-400" : "text-gray-300"}`}>
                             {dn ? "✓" : isR ? "—" : "○"}
                           </span>
                         </div>
                         <div className={`text-sm ${wc(wo)} mb-1`}>{wo}</div>
                         {sa && (
-                          <div className="pt-2 border-t border-zinc-800">
-                            <span className="text-xs text-orange-400">
+                          <div className="pt-2 border-t border-gray-200">
+                            <span className="text-xs text-[#B6FF3C]">
                               🟠 {toMi(sa.distance)} mi · {fmtDur(sa.moving_time)} · {fmtPace(sa.average_speed)}
                             </span>
                           </div>
@@ -397,15 +464,15 @@ export default function MarathonPlan() {
                   })}
                 </div>
               )}
-              
+
               {!athlete && (
-                <div className="mt-4 p-3 bg-zinc-950 rounded border border-dashed border-zinc-800 flex items-center justify-between gap-4 flex-wrap">
-                  <span className="text-sm text-zinc-500">
+                <div className="mt-4 p-3 bg-gray-50 rounded border border-dashed border-gray-300 flex items-center justify-between gap-4 flex-wrap">
+                  <span className="text-sm text-gray-500">
                     Connect Strava to auto-sync runs and see real pace data on each workout.
                   </span>
                   <button
                     onClick={() => setTab("strava")}
-                    className="px-4 py-2 bg-orange-500 text-black text-xs font-bold rounded hover:opacity-80"
+                    className="px-4 py-2 bg-[#B6FF3C] text-black text-xs font-bold rounded hover:opacity-80"
                   >
                     CONNECT STRAVA
                   </button>
@@ -429,7 +496,7 @@ export default function MarathonPlan() {
                     className={`px-4 py-2 text-xs font-bold tracking-widest rounded transition-colors ${
                       active
                         ? "text-black"
-                        : "bg-zinc-900 text-zinc-500 border border-zinc-800 hover:text-zinc-300"
+                        : "bg-white text-gray-500 border border-gray-200 hover:text-gray-900"
                     }`}
                     style={active ? { backgroundColor: p.accent, borderColor: p.accent } : undefined}
                   >
@@ -445,10 +512,10 @@ export default function MarathonPlan() {
                 <div className="text-xs tracking-widest uppercase mb-1" style={{ color: phase.accent }}>
                   {phase.range} · {phase.dates}
                 </div>
-                <h2 className="text-3xl font-black text-white">{phase.label}</h2>
+                <h2 className="text-3xl font-black text-white" style={{ color: "#111" }}>{phase.label}</h2>
               </div>
               <div
-                className="max-w-sm text-sm text-zinc-500 leading-relaxed border-l-2 pl-4"
+                className="max-w-sm text-sm text-gray-500 leading-relaxed border-l-2 pl-4"
                 style={{ borderColor: phase.accent }}
               >
                 {phase.tip}
@@ -456,14 +523,14 @@ export default function MarathonPlan() {
             </div>
 
             {/* Weeks Table */}
-            <div className="overflow-x-auto border border-zinc-800 rounded-lg">
+            <div className="overflow-x-auto border border-gray-200 rounded-lg">
               <table className="w-full min-w-[800px]">
                 <thead>
-                  <tr className="bg-zinc-900">
+                  <tr className="bg-gray-50">
                     {["", "WK", "DATE", "MON", "TUE", "WED", "FRI", "SAT", "MI"].map((h, i) => (
                       <th
                         key={i}
-                        className="text-left text-xs font-bold tracking-widest text-zinc-600 py-2 px-3 border-b border-zinc-800"
+                        className="text-left text-xs font-bold tracking-widest text-gray-400 py-2 px-3 border-b border-gray-200"
                       >
                         {h}
                       </th>
@@ -478,8 +545,8 @@ export default function MarathonPlan() {
                     return (
                       <tr
                         key={week.n}
-                        className={`border-b border-zinc-900 hover:bg-zinc-900/50 transition-colors ${
-                          isCur ? "bg-zinc-900/30" : ""
+                        className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                          isCur ? "bg-gray-50" : ""
                         }`}
                       >
                         <td className="py-2 px-2">
@@ -501,7 +568,7 @@ export default function MarathonPlan() {
                             {String(week.n).padStart(2, "0")}
                           </span>
                           {week.recovery && (
-                            <span className="ml-2 text-[10px] tracking-wide text-green-400 border border-green-800 rounded px-1">
+                            <span className="ml-2 text-[10px] tracking-wide text-[#B6FF3C] border border-[#B6FF3C]/40 rounded px-1">
                               REST
                             </span>
                           )}
@@ -514,7 +581,7 @@ export default function MarathonPlan() {
                             </span>
                           )}
                         </td>
-                        <td className="py-2 px-3 text-xs text-zinc-600 whitespace-nowrap">{week.date}</td>
+                        <td className="py-2 px-3 text-xs text-gray-400 whitespace-nowrap">{week.date}</td>
                         {DKEYS.map((d) => {
                           const w = week[d as keyof WeekData] as string;
                           const key = `${week.n}-${d}`;
@@ -531,7 +598,7 @@ export default function MarathonPlan() {
                                 {!isR && (
                                   <div
                                     className={`w-3 h-3 rounded flex items-center justify-center text-[8px] font-bold transition-all ${
-                                      dn ? "text-black" : "border-2 border-zinc-700"
+                                      dn ? "text-black" : "border-2 border-gray-300"
                                     }`}
                                     style={{ background: dn ? "#4ade80" : "transparent" }}
                                   >
@@ -565,10 +632,10 @@ export default function MarathonPlan() {
             </div>
 
             {/* Legend */}
-            <div className="flex flex-wrap gap-6 text-xs text-zinc-500">
+            <div className="flex flex-wrap gap-6 text-xs text-gray-500">
               <span>🟢 Green = completed</span>
               <span className="text-yellow-400">🟡 Yellow = tempo run</span>
-              <span className="text-blue-400">🔵 Blue = race day</span>
+              <span className="text-[#B6FF3C]">🔵 Blue = race day</span>
             </div>
           </div>
         )}
@@ -577,75 +644,75 @@ export default function MarathonPlan() {
         {tab === "strava" && !athlete && (
           <div className="max-w-xl animate-in fade-in duration-200">
             <h2 className="text-3xl font-black mb-2">CONNECT STRAVA</h2>
-            <p className="text-sm text-zinc-500 mb-6 leading-relaxed">
+            <p className="text-sm text-gray-500 mb-6 leading-relaxed">
               Once connected, your runs auto-import and workouts are marked complete with your real pace and distance.
             </p>
-            
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4">
+
+            <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
               <div
                 className="flex items-center justify-between cursor-pointer"
                 onClick={() => setShowI(!showI)}
               >
                 <span className="text-xs font-bold tracking-widest">HOW TO GET YOUR ACCESS TOKEN</span>
-                <span className="text-zinc-500 text-lg">{showI ? "−" : "+"}</span>
+                <span className="text-gray-500 text-lg">{showI ? "−" : "+"}</span>
               </div>
               {showI && (
-                <ol className="text-sm text-zinc-500 mt-4 pl-5 space-y-2 list-decimal leading-relaxed">
+                <ol className="text-sm text-gray-500 mt-4 pl-5 space-y-2 list-decimal leading-relaxed">
                   <li>
                     Go to{" "}
                     <a
                       href="https://www.strava.com/settings/api"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-orange-400 hover:underline"
+                      className="text-[#B6FF3C] hover:underline"
                     >
                       strava.com/settings/api
                     </a>{" "}
                     and create a free API application
                   </li>
                   <li>
-                    Set <strong className="text-zinc-300">Authorization Callback Domain</strong> to{" "}
-                    <code className="text-purple-400 bg-zinc-800 px-1 rounded text-xs">localhost</code>
+                    Set <strong className="text-gray-700">Authorization Callback Domain</strong> to{" "}
+                    <code className="text-[#B6FF3C] bg-gray-100 px-1 rounded text-xs">localhost</code>
                   </li>
                   <li>
-                    Note your <strong className="text-zinc-300">Client ID</strong> and{" "}
-                    <strong className="text-zinc-300">Client Secret</strong>
+                    Note your <strong className="text-gray-700">Client ID</strong> and{" "}
+                    <strong className="text-gray-700">Client Secret</strong>
                   </li>
                   <li>
-                    Open this in your browser, replacing <code className="text-purple-400">YOUR_CLIENT_ID</code>:
-                    <code className="text-xs text-purple-400 bg-zinc-950 block p-2 rounded mt-1 break-all">
+                    Open this in your browser, replacing <code className="text-[#B6FF3C]">YOUR_CLIENT_ID</code>:
+                    <code className="text-xs text-[#B6FF3C] bg-gray-100 block p-2 rounded mt-1 break-all">
                       https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost&scope=activity:read_all
                     </code>
                   </li>
                   <li>
                     Authorize → you&apos;ll be redirected to localhost. Copy the{" "}
-                    <strong className="text-zinc-300">code=</strong> value from the URL
+                    <strong className="text-gray-700">code=</strong> value from the URL
                   </li>
                   <li>
                     Run this to get your token (replace ID, SECRET, CODE):
-                    <code className="text-xs text-purple-400 bg-zinc-950 block p-2 rounded mt-1 break-all">
+                    <code className="text-xs text-[#B6FF3C] bg-gray-100 block p-2 rounded mt-1 break-all">
                       curl -X POST https://www.strava.com/oauth/token -d client_id=ID -d client_secret=SECRET -d code=CODE -d grant_type=authorization_code
                     </code>
                   </li>
                   <li>
-                    Copy the <strong className="text-zinc-300">access_token</strong> from the response and paste below
+                    Copy the <strong className="text-gray-700">access_token</strong> from the response and paste below
                   </li>
                 </ol>
               )}
             </div>
-            
+
             <div className="flex gap-2">
               <input
                 value={tInput}
                 onChange={(e) => setTInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && connectStrava()}
                 placeholder="Paste your Strava access token..."
-                className="flex-1 bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm outline-none focus:border-zinc-700"
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-black focus:ring-1 focus:ring-black bg-white text-gray-900"
               />
               <button
                 onClick={connectStrava}
                 disabled={syncing}
-                className="px-4 py-2 bg-orange-500 text-black text-xs font-bold rounded hover:opacity-80 disabled:opacity-50"
+                className="px-4 py-2 bg-[#B6FF3C] text-black text-xs font-bold rounded hover:opacity-80 disabled:opacity-50"
               >
                 {syncing ? <span className="animate-spin">⟳</span> : "CONNECT"}
               </button>
@@ -657,20 +724,20 @@ export default function MarathonPlan() {
         {/* Strava Tab - Connected */}
         {tab === "strava" && athlete && (
           <div className="animate-in fade-in duration-200">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4 flex items-center gap-4 flex-wrap">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4 flex items-center gap-4 flex-wrap">
               {athlete.profile_medium && (
                 <img
                   src={athlete.profile_medium}
                   alt=""
-                  className="w-12 h-12 rounded-full border-2 border-orange-500"
+                  className="w-12 h-12 rounded-full border-2 border-[#B6FF3C]"
                 />
               )}
               <div>
-                <div className="text-xs tracking-widest text-green-400 uppercase mb-1">Connected</div>
+                <div className="text-xs tracking-widest text-[#B6FF3C] uppercase mb-1">Connected</div>
                 <div className="text-xl font-bold">
                   {athlete.firstname} {athlete.lastname}
                 </div>
-                <div className="text-sm text-zinc-500">
+                <div className="text-sm text-gray-500">
                   {sRuns.length} runs synced · {sMiles.toFixed(1)} miles total
                 </div>
               </div>
@@ -678,38 +745,38 @@ export default function MarathonPlan() {
                 <button
                   onClick={syncStrava}
                   disabled={syncing}
-                  className="px-3 py-2 bg-zinc-800 text-zinc-300 text-xs font-bold rounded hover:bg-zinc-700 disabled:opacity-50"
+                  className="px-3 py-2 bg-gray-100 text-gray-700 text-xs font-bold rounded hover:bg-gray-200 disabled:opacity-50"
                 >
                   {syncing ? <span className="animate-spin">⟳</span> : "↻ SYNC NOW"}
                 </button>
                 <button
                   onClick={disconnect}
-                  className="px-3 py-2 bg-red-950 text-red-400 text-xs font-bold rounded hover:bg-red-900"
+                  className="px-3 py-2 bg-red-50 text-red-600 text-xs font-bold rounded hover:bg-red-100"
                 >
                   DISCONNECT
                 </button>
               </div>
             </div>
-            
+
             {serr && <div className="mb-4 text-sm text-red-400">⚠ {serr}</div>}
-            
-            <div className="text-xs tracking-widest text-zinc-500 uppercase mb-3">
+
+            <div className="text-xs tracking-widest text-gray-500 uppercase mb-3">
               Runs Since Plan Start — {sRuns.length} Activities
             </div>
-            
-            <div className="border border-zinc-800 rounded-lg overflow-hidden">
+
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
               {sRuns.length === 0 ? (
-                <div className="p-10 text-center text-zinc-500">
+                <div className="p-10 text-center text-gray-500">
                   No runs found since April 14 — go log some miles! 🏃
                 </div>
               ) : (
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-zinc-900">
+                    <tr className="bg-gray-50">
                       {["DATE", "ACTIVITY", "DIST", "TIME", "PACE", "WK", ""].map((h, i) => (
                         <th
                           key={i}
-                          className="text-left text-xs font-bold tracking-widest text-zinc-600 py-2 px-3 border-b border-zinc-800"
+                          className="text-left text-xs font-bold tracking-widest text-gray-400 py-2 px-3 border-b border-gray-200"
                         >
                           {h}
                         </th>
@@ -721,12 +788,12 @@ export default function MarathonPlan() {
                       const dt = a.start_date_local?.split("T")[0] || "";
                       const wn = Math.floor((new Date(dt + "T12:00:00").getTime() - PLAN_START.getTime()) / (7 * 864e5)) + 1;
                       return (
-                        <tr key={a.id} className="border-b border-zinc-900 hover:bg-zinc-900/50">
-                          <td className="py-2 px-3 text-xs text-zinc-500">{dt}</td>
+                        <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 px-3 text-xs text-gray-500">{dt}</td>
                           <td className="py-2 px-3 text-sm max-w-40 truncate">{a.name}</td>
-                          <td className="py-2 px-3 text-sm font-bold text-orange-400">{toMi(a.distance)} mi</td>
-                          <td className="py-2 px-3 text-sm text-zinc-500">{fmtDur(a.moving_time)}</td>
-                          <td className="py-2 px-3 text-sm text-zinc-500">{fmtPace(a.average_speed)}</td>
+                          <td className="py-2 px-3 text-sm font-bold text-[#B6FF3C]">{toMi(a.distance)} mi</td>
+                          <td className="py-2 px-3 text-sm text-gray-500">{fmtDur(a.moving_time)}</td>
+                          <td className="py-2 px-3 text-sm text-gray-500">{fmtPace(a.average_speed)}</td>
                           <td className="py-2 px-3">
                             {wn >= 1 && wn <= 29 && (
                               <span
@@ -742,7 +809,7 @@ export default function MarathonPlan() {
                               href={`https://www.strava.com/activities/${a.id}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-xs text-zinc-500 hover:text-zinc-300"
+                              className="text-xs text-gray-400 hover:text-gray-700"
                             >
                               View ↗
                             </a>
@@ -763,7 +830,7 @@ export default function MarathonPlan() {
             <div className="flex items-baseline justify-between gap-4 mb-6 flex-wrap">
               <div>
                 <h2 className="text-3xl font-black mb-1">RUN LOG</h2>
-                <p className="text-sm text-zinc-500">
+                <p className="text-sm text-gray-500">
                   {athlete ? "Strava runs auto-imported." : "Manual tracking."} {allRuns.length} total entries.
                 </p>
               </div>
@@ -771,8 +838,8 @@ export default function MarathonPlan() {
                 onClick={() => setShowForm(!showForm)}
                 className={`px-4 py-2 text-xs font-bold rounded ${
                   showForm
-                    ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                    : "bg-green-400 text-black hover:opacity-80"
+                    ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    : "bg-[#B6FF3C] text-black hover:opacity-80"
                 }`}
               >
                 {showForm ? "CANCEL" : "+ ADD RUN"}
@@ -780,36 +847,36 @@ export default function MarathonPlan() {
             </div>
 
             {showForm && (
-              <div className="bg-zinc-900 border border-green-800 rounded-lg p-4 mb-6">
-                <div className="text-xs tracking-widest text-green-400 uppercase mb-4">Log a Run Manually</div>
+              <div className="bg-white border border-[#B6FF3C]/40 rounded-lg p-4 mb-6">
+                <div className="text-xs tracking-widest text-[#B6FF3C] uppercase mb-4">Log a Run Manually</div>
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   <div>
-                    <label className="text-xs text-zinc-500 uppercase block mb-1">Date</label>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Date</label>
                     <input
                       type="date"
                       value={form.date}
                       onChange={(e) => setForm({ ...form, date: e.target.value })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm outline-none focus:border-zinc-700"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-black focus:ring-1 focus:ring-black bg-white text-gray-900"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-zinc-500 uppercase block mb-1">Distance (mi)</label>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Distance (mi)</label>
                     <input
                       type="number"
                       value={form.dist}
                       onChange={(e) => setForm({ ...form, dist: e.target.value })}
                       placeholder="3.5"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm outline-none focus:border-zinc-700"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-black focus:ring-1 focus:ring-black bg-white text-gray-900"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-zinc-500 uppercase block mb-1">Duration</label>
+                    <label className="text-xs text-gray-500 uppercase block mb-1">Duration</label>
                     <input
                       type="text"
                       value={form.dur}
                       onChange={(e) => setForm({ ...form, dur: e.target.value })}
                       placeholder="35m or 1h 20m"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm outline-none focus:border-zinc-700"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-black focus:ring-1 focus:ring-black bg-white text-gray-900"
                     />
                   </div>
                 </div>
@@ -818,11 +885,11 @@ export default function MarathonPlan() {
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
                     placeholder="Notes (optional)..."
-                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm outline-none focus:border-zinc-700"
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-black focus:ring-1 focus:ring-black bg-white text-gray-900"
                   />
                   <button
                     onClick={addRun}
-                    className="px-4 py-2 bg-green-400 text-black text-xs font-bold rounded hover:opacity-80"
+                    className="px-4 py-2 bg-[#B6FF3C] text-black text-xs font-bold rounded hover:opacity-80"
                   >
                     SAVE
                   </button>
@@ -831,7 +898,7 @@ export default function MarathonPlan() {
             )}
 
             {allRuns.length === 0 ? (
-              <div className="text-center py-16 text-zinc-500">
+              <div className="text-center py-16 text-gray-500">
                 <div className="text-4xl mb-3">🏃</div>
                 <div>
                   {athlete
@@ -840,14 +907,14 @@ export default function MarathonPlan() {
                 </div>
               </div>
             ) : (
-              <div className="border border-zinc-800 rounded-lg overflow-hidden">
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-zinc-900">
+                    <tr className="bg-gray-50">
                       {["DATE", "DIST", "DURATION", "PACE", "SOURCE", "NOTES", ""].map((h, i) => (
                         <th
                           key={i}
-                          className="text-left text-xs font-bold tracking-widest text-zinc-600 py-2 px-3 border-b border-zinc-800"
+                          className="text-left text-xs font-bold tracking-widest text-gray-400 py-2 px-3 border-b border-gray-200"
                         >
                           {h}
                         </th>
@@ -856,28 +923,28 @@ export default function MarathonPlan() {
                   </thead>
                   <tbody>
                     {allRuns.map((r) => (
-                      <tr key={r.id} className="border-b border-zinc-900 hover:bg-zinc-900/50">
-                        <td className="py-2 px-3 text-xs text-zinc-500">{r.date}</td>
-                        <td className="py-2 px-3 text-sm font-bold text-orange-400">{r.dist} mi</td>
-                        <td className="py-2 px-3 text-sm text-zinc-500">{r.dur}</td>
-                        <td className="py-2 px-3 text-sm text-zinc-500">{r.pace}</td>
+                      <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-2 px-3 text-xs text-gray-500">{r.date}</td>
+                        <td className="py-2 px-3 text-sm font-bold text-[#B6FF3C]">{r.dist} mi</td>
+                        <td className="py-2 px-3 text-sm text-gray-500">{r.dur}</td>
+                        <td className="py-2 px-3 text-sm text-gray-500">{r.pace}</td>
                         <td className="py-2 px-3">
                           <span
                             className={`text-xs px-2 py-0.5 rounded border ${
                               r.source === "strava"
-                                ? "text-orange-400 border-orange-400/30 bg-orange-400/10"
-                                : "text-green-400 border-green-400/30 bg-green-400/10"
+                                ? "text-[#B6FF3C] border-[#B6FF3C]/30 bg-[#B6FF3C]/10"
+                                : "text-[#B6FF3C] border-[#B6FF3C]/30 bg-[#B6FF3C]/10"
                             }`}
                           >
                             {r.source === "strava" ? "STRAVA" : "MANUAL"}
                           </span>
                         </td>
-                        <td className="py-2 px-3 text-sm text-zinc-500 max-w-40 truncate">{r.name || "—"}</td>
+                        <td className="py-2 px-3 text-sm text-gray-500 max-w-40 truncate">{r.name || "—"}</td>
                         <td className="py-2 px-3">
                           {r.source === "manual" ? (
                             <button
                               onClick={() => delManual(r.id as number)}
-                              className="text-zinc-600 hover:text-red-400"
+                              className="text-gray-300 hover:text-red-500"
                               title="Delete"
                             >
                               ✕
@@ -887,7 +954,7 @@ export default function MarathonPlan() {
                               href={`https://www.strava.com/activities/${r.id}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-xs text-zinc-500 hover:text-zinc-300"
+                              className="text-xs text-gray-400 hover:text-gray-700"
                             >
                               ↗
                             </a>
