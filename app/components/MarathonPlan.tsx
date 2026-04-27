@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import ProgressTab from "./ProgressTab";
 import {
-  PHASES,
   DKEYS,
-  PLAN_START,
   curWeekNum,
   raceDays,
   getWeekDates,
@@ -14,22 +14,31 @@ import {
   toMi,
   actForDate,
   DayKey,
+  Phase,
   WeekData,
   StravaAthlete,
   StravaActivity,
   ManualRun,
   RunEntry,
 } from "../data/plan";
+import type { Warning } from "@/lib/plan-generator";
 
-type TabType = "dashboard" | "plan" | "strava" | "log";
+type TabType = "dashboard" | "plan" | "progress" | "strava" | "log";
 
-type UserProfile = {
+type Props = {
   displayName?: string
   raceType?: string
   goalRaceDate?: string
   goalFinishTime?: string
   weeklyMileage?: number
   fitnessLevel?: string
+  phases: Phase[]
+  warnings: Warning[]
+  planStartIso: string
+  raceDateIso: string
+  totalWeeks: number
+  initialAthlete?: StravaAthlete
+  initialActs?: StravaActivity[]
 }
 
 export default function MarathonPlan({
@@ -39,7 +48,16 @@ export default function MarathonPlan({
   goalFinishTime,
   weeklyMileage,
   fitnessLevel,
-}: UserProfile = {}) {
+  phases: PHASES,
+  warnings,
+  planStartIso,
+  raceDateIso,
+  totalWeeks,
+  initialAthlete,
+  initialActs,
+}: Props) {
+  const PLAN_START = useMemo(() => new Date(`${planStartIso}T00:00:00`), [planStartIso]);
+  const RACE_DATE = useMemo(() => new Date(`${raceDateIso}T00:00:00`), [raceDateIso]);
   const [tab, setTab] = useState<TabType>("dashboard");
   const [phIdx, setPhIdx] = useState(0);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -47,8 +65,8 @@ export default function MarathonPlan({
   // Strava state
   const [token, setToken] = useState("");
   const [tInput, setTInput] = useState("");
-  const [athlete, setAthlete] = useState<StravaAthlete | null>(null);
-  const [acts, setActs] = useState<StravaActivity[]>([]);
+  const [athlete, setAthlete] = useState<StravaAthlete | null>(initialAthlete ?? null);
+  const [acts, setActs] = useState<StravaActivity[]>(initialActs ?? []);
   const [syncing, setSyncing] = useState(false);
   const [serr, setSErr] = useState("");
   const [showI, setShowI] = useState(false);
@@ -58,7 +76,8 @@ export default function MarathonPlan({
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ date: fmtDate(new Date()), dist: "", dur: "", notes: "" });
 
-  // Load state from localStorage
+  // Load state from localStorage. Server-supplied initial Strava data wins
+  // over a stale localStorage cache from a manual-paste session.
   useEffect(() => {
     const savedChecked = localStorage.getItem("marathon-checked");
     const savedToken = localStorage.getItem("marathon-token");
@@ -75,12 +94,16 @@ export default function MarathonPlan({
     if (savedToken) {
       setToken(savedToken);
     }
-    if (savedAthlete) {
+    if (initialAthlete) {
+      localStorage.setItem("marathon-athlete", JSON.stringify(initialAthlete));
+    } else if (savedAthlete) {
       try {
         setAthlete(JSON.parse(savedAthlete));
       } catch { /* ignore */ }
     }
-    if (savedActs) {
+    if (initialActs && initialActs.length > 0) {
+      localStorage.setItem("marathon-acts", JSON.stringify(initialActs));
+    } else if (savedActs) {
       try {
         setActs(JSON.parse(savedActs));
       } catch { /* ignore */ }
@@ -90,7 +113,7 @@ export default function MarathonPlan({
         setManual(JSON.parse(savedManual));
       } catch { /* ignore */ }
     }
-  }, []);
+  }, [initialAthlete, initialActs]);
 
   // Save checked state
   useEffect(() => {
@@ -105,7 +128,7 @@ export default function MarathonPlan({
       PHASES.forEach((ph) =>
         ph.weeks.forEach((w) => {
           DKEYS.forEach((d) => {
-            const dt = getWeekDates(w.n);
+            const dt = getWeekDates(PLAN_START, w.n);
             const ds = dt[d] ? fmtDate(dt[d]) : null;
             if (!ds) return;
             const found = acts.find(
@@ -119,7 +142,7 @@ export default function MarathonPlan({
       );
       return next;
     });
-  }, [acts]);
+  }, [acts, PHASES, PLAN_START]);
 
   const toggle = (key: string) => {
     setChecked((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -137,11 +160,13 @@ export default function MarathonPlan({
       });
       if (!ar.ok) throw new Error(`Strava error ${ar.status} — check your token`);
       const ath = await ar.json();
-      const since = Math.floor(PLAN_START.getTime() / 1000);
+      // Subtract 24h from plan start so timezone differences never cut off day-1 activities
+      const since = Math.floor(PLAN_START.getTime() / 1000) - 86400;
       const acr = await fetch(
         `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${since}`,
         { headers: { Authorization: `Bearer ${tk}` } }
       );
+      if (!acr.ok) throw new Error(`Failed to fetch activities (${acr.status}) — check token scope`);
       const raw = await acr.json();
       const runs = Array.isArray(raw) ? raw : [];
       setToken(tk);
@@ -162,11 +187,12 @@ export default function MarathonPlan({
     setSyncing(true);
     setSErr("");
     try {
-      const since = Math.floor(PLAN_START.getTime() / 1000);
+      const since = Math.floor(PLAN_START.getTime() / 1000) - 86400;
       const r = await fetch(
         `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${since}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      if (!r.ok) throw new Error(`Activities fetch failed (${r.status})`);
       const raw = await r.json();
       const runs = Array.isArray(raw) ? raw : [];
       setActs(runs);
@@ -209,13 +235,11 @@ export default function MarathonPlan({
   };
 
   // Computed values
-  const CW = curWeekNum();
-  const RD = goalRaceDate
-    ? Math.ceil((new Date(goalRaceDate).getTime() - Date.now()) / 86400000)
-    : raceDays();
+  const CW = curWeekNum(PLAN_START, totalWeeks);
+  const RD = raceDays(RACE_DATE);
   const cPhase = PHASES.find((p) => p.weeks.some((w) => w.n === CW)) || PHASES[0];
   const cWkData = PHASES.flatMap((p) => p.weeks).find((w) => w.n === CW);
-  const cwDates = getWeekDates(CW);
+  const cwDates = getWeekDates(PLAN_START, CW);
   const phase = PHASES[phIdx];
   const allKeys = PHASES.flatMap((p) =>
     p.weeks.flatMap((w) => DKEYS.map((d) => `${w.n}-${d}`))
@@ -261,6 +285,7 @@ export default function MarathonPlan({
   const navTabs = [
     { id: "dashboard" as TabType, lb: "DASHBOARD" },
     { id: "plan" as TabType, lb: "PLAN" },
+    { id: "progress" as TabType, lb: "PROGRESS" },
     { id: "strava" as TabType, lb: athlete ? "✓ STRAVA" : "STRAVA", sp: athlete ? "#4ade80" : undefined },
     { id: "log" as TabType, lb: `LOG${allRuns.length ? ` (${allRuns.length})` : ""}` },
   ];
@@ -305,17 +330,42 @@ export default function MarathonPlan({
             </button>
           ))}
         </div>
-        <div className="text-right">
-          <div className="text-xs tracking-widest text-gray-500 uppercase">
-            {raceType ? raceType.replace(/_/g, ' ') : 'Race'}
-            {goalRaceDate ? ` · ${new Date(goalRaceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/profile"
+            className="text-xs font-bold tracking-widest text-gray-500 hover:text-gray-900"
+          >
+            EDIT
+          </Link>
+          <div className="text-right">
+            <div className="text-xs tracking-widest text-gray-500 uppercase">
+              {raceType ? raceType.replace(/_/g, ' ') : 'Race'}
+              {goalRaceDate ? ` · ${new Date(goalRaceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+            </div>
+            <div className="text-2xl font-black text-[#B6FF3C]">{RD > 0 ? `${RD}d` : '🏁'}</div>
           </div>
-          <div className="text-2xl font-black text-[#B6FF3C]">{RD > 0 ? `${RD}d` : '🏁'}</div>
         </div>
       </nav>
 
       {/* Content */}
       <main className="max-w-5xl mx-auto px-6 py-6 pb-16">
+        {warnings.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {warnings.map((w) => (
+              <div
+                key={w.code}
+                className={`rounded-lg border px-4 py-3 text-sm ${
+                  w.code === 'TIMELINE_TOO_SHORT'
+                    ? 'border-orange-200 bg-orange-50 text-orange-900'
+                    : 'border-blue-200 bg-blue-50 text-blue-900'
+                }`}
+              >
+                <span className="font-bold mr-1">{w.code.replace(/_/g, ' ')}:</span>
+                {w.message}
+              </div>
+            ))}
+          </div>
+        )}
         {/* Dashboard Tab */}
         {tab === "dashboard" && (
           <div className="space-y-4 animate-in fade-in duration-200">
@@ -447,8 +497,15 @@ export default function MarathonPlan({
                           <span className={`text-xs tracking-widest ${dn ? "text-[#B6FF3C]" : "text-gray-500"}`}>
                             {dayLabel(d)}
                           </span>
-                          <span className={`text-sm ${dn ? "text-[#B6FF3C]" : isR ? "text-gray-400" : "text-gray-300"}`}>
-                            {dn ? "✓" : isR ? "—" : "○"}
+                          <span className="flex items-center gap-1.5">
+                            {dn && sa && (
+                              <span className="text-[9px] font-bold tracking-widest text-[#B6FF3C] border border-[#B6FF3C]/40 rounded px-1 py-px">
+                                AUTO
+                              </span>
+                            )}
+                            <span className={`text-sm ${dn ? "text-[#B6FF3C]" : isR ? "text-gray-400" : "text-gray-300"}`}>
+                              {dn ? "✓" : isR ? "—" : "○"}
+                            </span>
                           </span>
                         </div>
                         <div className={`text-sm ${wc(wo)} mb-1`}>{wo}</div>
@@ -640,6 +697,18 @@ export default function MarathonPlan({
           </div>
         )}
 
+        {/* Progress Tab */}
+        {tab === "progress" && (
+          <ProgressTab
+            phases={PHASES}
+            planStartDate={PLAN_START}
+            currentWeek={CW}
+            totalWeeks={totalWeeks}
+            acts={acts}
+            manual={manual}
+          />
+        )}
+
         {/* Strava Tab - Connect */}
         {tab === "strava" && !athlete && (
           <div className="max-w-xl animate-in fade-in duration-200">
@@ -767,7 +836,7 @@ export default function MarathonPlan({
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               {sRuns.length === 0 ? (
                 <div className="p-10 text-center text-gray-500">
-                  No runs found since April 14 — go log some miles! 🏃
+                  No runs found since {PLAN_START.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} — go log some miles! 🏃
                 </div>
               ) : (
                 <table className="w-full">
@@ -795,7 +864,7 @@ export default function MarathonPlan({
                           <td className="py-2 px-3 text-sm text-gray-500">{fmtDur(a.moving_time)}</td>
                           <td className="py-2 px-3 text-sm text-gray-500">{fmtPace(a.average_speed)}</td>
                           <td className="py-2 px-3">
-                            {wn >= 1 && wn <= 29 && (
+                            {wn >= 1 && wn <= totalWeeks && (
                               <span
                                 className="text-xs px-2 py-0.5 rounded border"
                                 style={{ color: cPhase.accent, borderColor: `${cPhase.accent}40` }}

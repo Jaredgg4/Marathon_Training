@@ -33,6 +33,7 @@ export default function OnboardingWizard({ userId }: { userId: string }) {
     setError(null)
     setSubmitting(true)
     const interval = `${finalData.goal_finish_hours} hours ${finalData.goal_finish_minutes} minutes`
+    const today = new Date().toISOString().split('T')[0]
 
     const { error: updateError } = await supabase
       .from('profiles')
@@ -43,6 +44,7 @@ export default function OnboardingWizard({ userId }: { userId: string }) {
         goal_finish_time: interval,
         weekly_mileage: finalData.weekly_mileage,
         fitness_level: finalData.fitness_level,
+        plan_start_date: today,
         onboarding_done: true,
       })
       .eq('id', userId)
